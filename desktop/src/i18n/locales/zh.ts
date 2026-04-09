@@ -141,6 +141,20 @@ export const zh: Record<TranslationKey, string> = {
   'settings.adapters.platform.telegram': 'Telegram',
   'settings.adapters.platform.feishu': '飞书',
 
+  // Settings > Agents
+  'settings.tab.agents': 'Agents',
+  'settings.agents.title': '已安装的 Agents',
+  'settings.agents.description': '从 ~/.claude/agents/ 发现的 Agent。可在 TUI 中使用 /agents 管理。',
+  'settings.agents.empty': '暂无已安装的 Agent。',
+  'settings.agents.emptyHint': '在 ~/.claude/agents/ 中创建 .md 或 .yaml 文件来添加自定义 Agent。',
+  'settings.agents.model': '模型',
+  'settings.agents.tools': '工具',
+  'settings.agents.systemPrompt': '系统提示词',
+  'settings.agents.noDescription': '暂无描述',
+  'settings.agents.noSystemPrompt': '未定义系统提示词。',
+  'settings.agents.backToList': '返回列表',
+  'settings.agents.agentCount': '{count} 个 Agent',
+
   // Settings > General
   'settings.general.languageTitle': '语言',
   'settings.general.languageDescription': '选择应用程序的显示语言。',

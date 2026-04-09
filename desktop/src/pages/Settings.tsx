@@ -11,8 +11,11 @@ import { PROVIDER_PRESETS } from '../config/providerPresets'
 import type { ProviderPreset } from '../config/providerPresets'
 import type { SavedProvider, UpdateProviderInput, ProviderTestResult, ModelMapping } from '../types/provider'
 import { AdapterSettings } from './AdapterSettings'
+import { useAgentStore } from '../stores/agentStore'
+import type { AgentDefinition } from '../api/agents'
+import { MarkdownRenderer } from '../components/markdown/MarkdownRenderer'
 
-type SettingsTab = 'providers' | 'permissions' | 'general' | 'adapters'
+type SettingsTab = 'providers' | 'permissions' | 'general' | 'adapters' | 'agents'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers')
@@ -27,6 +30,7 @@ export function Settings() {
           <TabButton icon="shield" label={t('settings.tab.permissions')} active={activeTab === 'permissions'} onClick={() => setActiveTab('permissions')} />
           <TabButton icon="tune" label={t('settings.tab.general')} active={activeTab === 'general'} onClick={() => setActiveTab('general')} />
           <TabButton icon="chat" label={t('settings.tab.adapters')} active={activeTab === 'adapters'} onClick={() => setActiveTab('adapters')} />
+          <TabButton icon="smart_toy" label={t('settings.tab.agents')} active={activeTab === 'agents'} onClick={() => setActiveTab('agents')} />
         </div>
 
         {/* Tab content */}
@@ -35,6 +39,7 @@ export function Settings() {
           {activeTab === 'permissions' && <PermissionSettings />}
           {activeTab === 'general' && <GeneralSettings />}
           {activeTab === 'adapters' && <AdapterSettings />}
+          {activeTab === 'agents' && <AgentsSettings />}
         </div>
       </div>
     </div>
@@ -599,6 +604,153 @@ function GeneralSettings() {
             {EFFORT_LABELS[level]}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Agents Settings ──────────────────────────────────────
+
+const AGENT_COLORS: Record<string, string> = {
+  red: '#ef4444',
+  orange: '#f97316',
+  yellow: '#eab308',
+  green: '#22c55e',
+  blue: '#3b82f6',
+  purple: '#a855f7',
+  pink: '#ec4899',
+  cyan: '#06b6d4',
+}
+
+function AgentsSettings() {
+  const { agents, isLoading, error, selectedAgent, fetchAgents, selectAgent } = useAgentStore()
+  const t = useTranslation()
+
+  useEffect(() => { fetchAgents() }, [fetchAgents])
+
+  if (selectedAgent) {
+    return <AgentDetailView agent={selectedAgent} onBack={() => selectAgent(null)} />
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{t('settings.agents.title')}</h2>
+          <p className="text-sm text-[var(--color-text-tertiary)] mt-0.5">{t('settings.agents.description')}</p>
+        </div>
+        {agents.length > 0 && (
+          <span className="text-xs text-[var(--color-text-tertiary)]">{t('settings.agents.agentCount', { count: String(agents.length) })}</span>
+        )}
+      </div>
+
+      {isLoading && agents.length === 0 ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin w-5 h-5 border-2 border-[var(--color-brand)] border-t-transparent rounded-full" />
+        </div>
+      ) : error ? (
+        <div className="text-center py-12 px-4">
+          <span className="material-symbols-outlined text-[40px] text-[var(--color-error)] mb-3 block">error_outline</span>
+          <p className="text-sm text-[var(--color-error)] mb-2">{error}</p>
+          <button
+            onClick={() => fetchAgents()}
+            className="text-xs text-[var(--color-text-accent)] hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : agents.length === 0 ? (
+        <div className="text-center py-12 px-4">
+          <span className="material-symbols-outlined text-[40px] text-[var(--color-text-tertiary)] mb-3 block">smart_toy</span>
+          <p className="text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.agents.empty')}</p>
+          <p className="text-xs text-[var(--color-text-tertiary)]">{t('settings.agents.emptyHint')}</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {agents.map((agent) => {
+            const dotColor = agent.color && AGENT_COLORS[agent.color] ? AGENT_COLORS[agent.color] : 'var(--color-text-tertiary)'
+            return (
+              <button
+                key={agent.name}
+                onClick={() => selectAgent(agent)}
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-[var(--color-border)] hover:border-[var(--color-border-focus)] hover:bg-[var(--color-surface-hover)] transition-all text-left group"
+              >
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{agent.name}</span>
+                    {agent.model && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--color-surface-container-high)] text-[var(--color-text-tertiary)] leading-none">{agent.model}</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5">
+                    {agent.description || t('settings.agents.noDescription')}
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity">
+                  chevron_right
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgentDetailView({ agent, onBack }: { agent: AgentDefinition; onBack: () => void }) {
+  const t = useTranslation()
+  const dotColor = agent.color && AGENT_COLORS[agent.color] ? AGENT_COLORS[agent.color] : 'var(--color-text-tertiary)'
+
+  return (
+    <div className="max-w-2xl">
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors mb-4"
+      >
+        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+        {t('settings.agents.backToList')}
+      </button>
+
+      {/* Agent header */}
+      <div className="flex items-center gap-3 mb-6">
+        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+        <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">{agent.name}</h2>
+      </div>
+
+      {/* Description */}
+      {agent.description && (
+        <p className="text-sm text-[var(--color-text-secondary)] mb-4">{agent.description}</p>
+      )}
+
+      {/* Meta info */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        {agent.model && (
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px] text-[var(--color-text-tertiary)]">psychology</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">{t('settings.agents.model')}: <strong>{agent.model}</strong></span>
+          </div>
+        )}
+        {agent.tools && agent.tools.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px] text-[var(--color-text-tertiary)]">build</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">{t('settings.agents.tools')}: <strong>{agent.tools.join(', ')}</strong></span>
+          </div>
+        )}
+      </div>
+
+      {/* System Prompt */}
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">{t('settings.agents.systemPrompt')}</h3>
+        {agent.systemPrompt ? (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4 max-h-[60vh] overflow-y-auto">
+            <MarkdownRenderer content={agent.systemPrompt} />
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--color-text-tertiary)]">{t('settings.agents.noSystemPrompt')}</p>
+        )}
       </div>
     </div>
   )

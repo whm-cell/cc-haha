@@ -139,6 +139,20 @@ export const en = {
   'settings.adapters.platform.telegram': 'Telegram',
   'settings.adapters.platform.feishu': 'Feishu',
 
+  // Settings > Agents
+  'settings.tab.agents': 'Agents',
+  'settings.agents.title': 'Installed Agents',
+  'settings.agents.description': 'Agents discovered from ~/.claude/agents/. Use /agents in TUI to manage them.',
+  'settings.agents.empty': 'No agents installed yet.',
+  'settings.agents.emptyHint': 'Create .md or .yaml files in ~/.claude/agents/ to add custom agents.',
+  'settings.agents.model': 'Model',
+  'settings.agents.tools': 'Tools',
+  'settings.agents.systemPrompt': 'System Prompt',
+  'settings.agents.noDescription': 'No description',
+  'settings.agents.noSystemPrompt': 'No system prompt defined.',
+  'settings.agents.backToList': 'Back to list',
+  'settings.agents.agentCount': '{count} agents',
+
   // Settings > General
   'settings.general.languageTitle': 'Language',
   'settings.general.languageDescription': 'Choose the display language for the application.',
