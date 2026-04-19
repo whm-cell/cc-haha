@@ -281,4 +281,32 @@ describe('MessageList nested tool calls', () => {
       '先看 CLI 和服务端入口。\n再看 desktop 前后端边界。'
     )
   })
+
+  it('shows raw startup details under translated CLI startup errors', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [
+            {
+              id: 'error-1',
+              type: 'error',
+              code: 'CLI_START_FAILED',
+              message:
+                'CLI exited during startup (code 1): Claude Code on Windows requires git-bash (https://git-scm.com/downloads/win).',
+              timestamp: 1,
+            },
+          ],
+        }),
+      },
+    })
+
+    render(<MessageList />)
+
+    expect(screen.getByText('Failed to start CLI process.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'CLI exited during startup (code 1): Claude Code on Windows requires git-bash (https://git-scm.com/downloads/win).',
+      ),
+    ).toBeTruthy()
+  })
 })
