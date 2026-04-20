@@ -15,6 +15,8 @@
 import { sessionService } from '../services/sessionService.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import { getSlashCommands } from '../ws/handler.js'
+import { getCommandName } from '../../commands.js'
+import { getSkillDirCommands } from '../../skills/loadSkillsDir.js'
 
 export async function handleSessionsApi(
   req: Request,
@@ -78,7 +80,7 @@ export async function handleSessionsApi(
           { status: 405 }
         )
       }
-      return Response.json({ commands: getSlashCommands(sessionId) })
+      return await getSessionSlashCommands(sessionId)
     }
 
     // Route to conversations handler if sub-resource is 'chat'
@@ -165,6 +167,28 @@ async function createSession(req: Request): Promise<Response> {
 async function deleteSession(sessionId: string): Promise<Response> {
   await sessionService.deleteSession(sessionId)
   return Response.json({ ok: true })
+}
+
+async function getSessionSlashCommands(sessionId: string): Promise<Response> {
+  const cachedCommands = getSlashCommands(sessionId)
+  if (cachedCommands.length > 0) {
+    return Response.json({ commands: cachedCommands })
+  }
+
+  const workDir = await sessionService.getSessionWorkDir(sessionId)
+  if (!workDir) {
+    throw ApiError.notFound(`Session not found: ${sessionId}`)
+  }
+
+  const commands = await getSkillDirCommands(workDir)
+  const slashCommands = commands
+    .filter((command) => command.userInvocable !== false)
+    .map((command) => ({
+      name: getCommandName(command),
+      description: command.description || '',
+    }))
+
+  return Response.json({ commands: slashCommands })
 }
 
 async function getGitInfo(sessionId: string): Promise<Response> {

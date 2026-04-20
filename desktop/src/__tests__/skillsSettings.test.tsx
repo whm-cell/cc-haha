@@ -5,6 +5,8 @@ import '@testing-library/jest-dom'
 import { Settings } from '../pages/Settings'
 import { useSkillStore } from '../stores/skillStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useSessionStore } from '../stores/sessionStore'
+import { useTabStore, SETTINGS_TAB_ID } from '../stores/tabStore'
 
 vi.mock('../api/agents', () => ({
   agentsApi: {
@@ -60,6 +62,26 @@ describe('Settings > Skills tab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useSettingsStore.setState({ locale: 'en' })
+    useSessionStore.setState({
+      sessions: [
+        {
+          id: 'session-1',
+          title: 'Active session',
+          createdAt: '2026-04-20T00:00:00.000Z',
+          modifiedAt: '2026-04-20T00:00:00.000Z',
+          messageCount: 1,
+          projectPath: '/workspace/project',
+          workDir: '/workspace/project',
+          workDirExists: true,
+        },
+      ],
+      activeSessionId: 'session-1',
+      isLoading: false,
+      error: null,
+      selectedProjects: [],
+      availableProjects: ['/workspace/project'],
+    })
+    useTabStore.setState({ tabs: [], activeTabId: null })
     useSkillStore.setState({
       skills: [],
       selectedSkill: null,
@@ -104,6 +126,29 @@ describe('Settings > Skills tab', () => {
     expect(screen.getByText('Total skills')).toBeInTheDocument()
     expect(screen.getByText('Alpha Skill')).toBeInTheDocument()
     expect(screen.getByText('Second skill description')).toBeInTheDocument()
+  })
+
+  it('uses the active session workDir even when settings tab is focused', () => {
+    const fetchSkills = vi.fn()
+    useSkillStore.setState({
+      skills: [],
+      selectedSkill: null,
+      isLoading: false,
+      isDetailLoading: false,
+      error: null,
+      fetchSkills,
+      fetchSkillDetail: MOCK_FETCH_SKILL_DETAIL,
+      clearSelection: MOCK_CLEAR_SELECTION,
+    })
+    useTabStore.setState({
+      activeTabId: SETTINGS_TAB_ID,
+      tabs: [{ sessionId: SETTINGS_TAB_ID, title: 'Settings', type: 'settings', status: 'idle' }],
+    })
+
+    render(<Settings />)
+    switchToSkillsTab()
+
+    expect(fetchSkills).toHaveBeenCalledWith('/workspace/project')
   })
 
   it('opens skill detail with metadata cards and parsed markdown body', () => {

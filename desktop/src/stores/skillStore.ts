@@ -9,8 +9,8 @@ type SkillStore = {
   isDetailLoading: boolean
   error: string | null
 
-  fetchSkills: () => Promise<void>
-  fetchSkillDetail: (source: string, name: string) => Promise<void>
+  fetchSkills: (cwd?: string) => Promise<void>
+  fetchSkillDetail: (source: string, name: string, cwd?: string) => Promise<void>
   clearSelection: () => void
 }
 
@@ -21,10 +21,10 @@ export const useSkillStore = create<SkillStore>((set) => ({
   isDetailLoading: false,
   error: null,
 
-  fetchSkills: async () => {
+  fetchSkills: async (cwd) => {
     set({ isLoading: true, error: null })
     try {
-      const { skills } = await skillsApi.list()
+      const { skills } = await skillsApi.list(cwd)
       set({ skills, isLoading: false })
     } catch (err) {
       set({
@@ -34,10 +34,10 @@ export const useSkillStore = create<SkillStore>((set) => ({
     }
   },
 
-  fetchSkillDetail: async (source, name) => {
+  fetchSkillDetail: async (source, name, cwd) => {
     set({ isDetailLoading: true, error: null })
     try {
-      const { detail } = await skillsApi.detail(source, name)
+      const { detail } = await skillsApi.detail(source, name, cwd)
       set({ selectedSkill: detail, isDetailLoading: false })
     } catch (err) {
       set({

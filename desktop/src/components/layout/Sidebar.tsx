@@ -23,6 +23,8 @@ export function Sidebar() {
   const renameSession = useSessionStore((s) => s.renameSession)
   const addToast = useUIStore((s) => s.addToast)
   const activeTabId = useTabStore((s) => s.activeTabId)
+  const closeTab = useTabStore((s) => s.closeTab)
+  const disconnectSession = useChatStore((s) => s.disconnectSession)
   const [searchQuery, setSearchQuery] = useState('')
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -64,7 +66,9 @@ export function Sidebar() {
   const handleDelete = useCallback(async (id: string) => {
     setContextMenu(null)
     await deleteSession(id)
-  }, [deleteSession])
+    disconnectSession(id)
+    closeTab(id)
+  }, [closeTab, deleteSession, disconnectSession])
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
     setContextMenu(null)

@@ -6,10 +6,12 @@
  *       ?source=user&name=xxx
  */
 
-import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
+import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
+import { getProjectDirsUpToHome } from '../../utils/markdownConfigLoader.js'
+import { getCwd } from '../../utils/cwd.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -24,6 +26,8 @@ type SkillMeta = {
   contentLength: number
   hasDirectory: boolean
 }
+
+type SkillSource = SkillMeta['source']
 
 type FileTreeNode = {
   name: string
@@ -74,7 +78,15 @@ function normalizeFrontmatter(content: string, sourcePath?: string): {
 }
 
 function getUserSkillsDir(): string {
-  return path.join(os.homedir(), '.claude', 'skills')
+  return path.join(getClaudeConfigHomeDir(), 'skills')
+}
+
+function getRequestedCwd(url: URL): string {
+  return url.searchParams.get('cwd') || getCwd()
+}
+
+function getProjectSkillsDirs(cwd: string): string[] {
+  return getProjectDirsUpToHome('skills', cwd)
 }
 
 async function loadSkillMeta(
@@ -191,6 +203,60 @@ async function buildFileTree(
   return { tree, files }
 }
 
+async function collectSkillsFromRoots(
+  skillRoots: string[],
+  source: SkillSource,
+): Promise<SkillMeta[]> {
+  const skills: SkillMeta[] = []
+  const seenNames = new Set<string>()
+
+  for (const root of skillRoots) {
+    let entries: import('fs').Dirent[]
+    try {
+      entries = await fs.readdir(root, { withFileTypes: true })
+    } catch {
+      continue
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || seenNames.has(entry.name)) {
+        continue
+      }
+
+      const meta = await loadSkillMeta(path.join(root, entry.name), entry.name, source)
+      if (!meta) continue
+
+      seenNames.add(entry.name)
+      skills.push(meta)
+    }
+  }
+
+  return skills
+}
+
+async function resolveSkillDir(
+  source: SkillSource,
+  name: string,
+  cwd: string,
+): Promise<string | null> {
+  const skillRoots =
+    source === 'user' ? [getUserSkillsDir()] : getProjectSkillsDirs(cwd)
+
+  for (const root of skillRoots) {
+    const skillDir = path.join(root, name)
+    try {
+      const stat = await fs.stat(skillDir)
+      if (stat.isDirectory()) {
+        return skillDir
+      }
+    } catch {
+      // Try the next candidate root.
+    }
+  }
+
+  return null
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export async function handleSkillsApi(
@@ -207,7 +273,7 @@ export async function handleSkillsApi(
 
     switch (sub) {
       case undefined:
-        return await listSkills()
+        return await listSkills(url)
       case 'detail':
         return await getSkillDetail(url)
       default:
@@ -220,25 +286,14 @@ export async function handleSkillsApi(
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
-async function listSkills(): Promise<Response> {
-  const skillsDir = getUserSkillsDir()
-  const skills: SkillMeta[] = []
+async function listSkills(url: URL): Promise<Response> {
+  const cwd = getRequestedCwd(url)
+  const [userSkills, projectSkills] = await Promise.all([
+    collectSkillsFromRoots([getUserSkillsDir()], 'user'),
+    collectSkillsFromRoots(getProjectSkillsDirs(cwd), 'project'),
+  ])
 
-  try {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-      const meta = await loadSkillMeta(
-        path.join(skillsDir, entry.name),
-        entry.name,
-        'user',
-      )
-      if (meta) skills.push(meta)
-    }
-  } catch {
-    // skills dir doesn't exist — return empty list
-  }
-
+  const skills = [...userSkills, ...projectSkills]
   skills.sort((a, b) => a.name.localeCompare(b.name))
   return Response.json({ skills })
 }
@@ -256,21 +311,17 @@ async function getSkillDetail(url: URL): Promise<Response> {
     throw ApiError.badRequest('Invalid skill name')
   }
 
-  let skillDir: string
-  if (source === 'user') {
-    skillDir = path.join(getUserSkillsDir(), name)
-  } else {
+  if (source !== 'user' && source !== 'project') {
     throw ApiError.badRequest(`Unsupported source: ${source}`)
   }
 
-  try {
-    const stat = await fs.stat(skillDir)
-    if (!stat.isDirectory()) throw new Error()
-  } catch {
+  const cwd = getRequestedCwd(url)
+  const skillDir = await resolveSkillDir(source, name, cwd)
+  if (!skillDir) {
     throw ApiError.notFound(`Skill not found: ${name}`)
   }
 
-  const meta = await loadSkillMeta(skillDir, name, source as 'user')
+  const meta = await loadSkillMeta(skillDir, name, source)
   if (!meta) {
     throw ApiError.notFound(`Skill missing SKILL.md: ${name}`)
   }

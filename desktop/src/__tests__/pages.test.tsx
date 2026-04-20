@@ -13,6 +13,7 @@ import { ToolInspection } from '../pages/ToolInspection'
 import { Sidebar } from '../components/layout/Sidebar'
 import { UserMessage } from '../components/chat/UserMessage'
 import { useChatStore } from '../stores/chatStore'
+import { useSessionStore } from '../stores/sessionStore'
 import { useTabStore } from '../stores/tabStore'
 
 /**
@@ -62,10 +63,68 @@ describe('Content-only pages render without errors', () => {
     // With empty messages, the hero is shown
     expect(container.innerHTML).toContain('New session')
     // ChatInput has a textarea
-    expect(container.querySelector('textarea')).toBeInTheDocument()
+    const textarea = container.querySelector('textarea')
+    expect(textarea).toBeInTheDocument()
+    expect(textarea).toHaveAttribute('placeholder', 'Ask anything...')
+    expect(textarea).toHaveAttribute('rows', '2')
     expect(container.innerHTML).not.toContain('Preview')
     // Cleanup
     useTabStore.setState({ tabs: [], activeTabId: null })
+    useChatStore.setState({ sessions: {} })
+  })
+
+  it('ActiveSession keeps the compact composer once messages exist', () => {
+    const SESSION_ID = 'test-active-session-with-messages'
+    useTabStore.setState({ tabs: [{ sessionId: SESSION_ID, title: 'Test', type: 'session' as const, status: 'idle' }], activeTabId: SESSION_ID })
+    useChatStore.setState({
+      sessions: {
+        [SESSION_ID]: {
+          messages: [{
+            id: 'msg-1',
+            type: 'user_text',
+            content: 'hello',
+            timestamp: Date.now(),
+          }],
+          chatState: 'idle',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+      },
+    })
+    useSessionStore.setState({
+      sessions: [{
+        id: SESSION_ID,
+        title: 'Test',
+        createdAt: '2026-04-10T00:00:00.000Z',
+        modifiedAt: '2026-04-10T00:00:00.000Z',
+        messageCount: 1,
+        projectPath: '',
+        workDir: null,
+        workDirExists: true,
+      }],
+      activeSessionId: SESSION_ID,
+      isLoading: false,
+      error: null,
+    })
+
+    render(<ActiveSession />)
+
+    const textarea = screen.getByPlaceholderText('Ask Claude to edit, debug or explain...')
+    expect(textarea).toHaveAttribute('rows', '1')
+
+    useTabStore.setState({ tabs: [], activeTabId: null })
+    useSessionStore.setState({ sessions: [], activeSessionId: null, isLoading: false, error: null })
     useChatStore.setState({ sessions: {} })
   })
 

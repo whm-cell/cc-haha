@@ -7,6 +7,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { SessionService } from '../services/sessionService.js'
+import { clearCommandsCache } from '../../commands.js'
 import { sanitizePath } from '../../utils/sessionStoragePortable.js'
 
 // ============================================================================
@@ -43,6 +44,20 @@ async function writeSessionFile(
   const content = entries.map((e) => JSON.stringify(e)).join('\n') + '\n'
   await fs.writeFile(filePath, content, 'utf-8')
   return filePath
+}
+
+async function writeSkill(
+  rootDir: string,
+  skillName: string,
+  description: string,
+): Promise<void> {
+  const skillDir = path.join(rootDir, skillName)
+  await fs.mkdir(skillDir, { recursive: true })
+  await fs.writeFile(
+    path.join(skillDir, 'SKILL.md'),
+    ['---', `description: ${description}`, '---', '', `# ${skillName}`].join('\n'),
+    'utf-8',
+  )
 }
 
 // Sample entries matching real CLI format
@@ -122,6 +137,7 @@ describe('SessionService', () => {
   })
 
   afterEach(async () => {
+    clearCommandsCache()
     await cleanupTmpDir()
   })
 
@@ -690,6 +706,37 @@ describe('Sessions API', () => {
     const detailRes = await fetch(`${baseUrl}/api/sessions/${sessionId}`)
     const detail = (await detailRes.json()) as { title: string }
     expect(detail.title).toBe('New Custom Title')
+  })
+
+  it('GET /api/sessions/:id/slash-commands should include user and project skills before CLI init', async () => {
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const workDir = path.join(tmpDir, 'workspace', 'app')
+
+    await fs.mkdir(path.join(workDir, '.claude', 'skills'), { recursive: true })
+    await fs.mkdir(path.join(tmpDir, 'skills'), { recursive: true })
+    await writeSkill(path.join(tmpDir, 'skills'), 'user-skill', 'User skill description')
+    await writeSkill(path.join(workDir, '.claude', 'skills'), 'project-skill', 'Project skill description')
+
+    await writeSessionFile('-tmp-api-test', sessionId, [
+      makeSnapshotEntry(),
+      makeSessionMetaEntry(workDir),
+    ])
+
+    clearCommandsCache()
+
+    const res = await fetch(`${baseUrl}/api/sessions/${sessionId}/slash-commands`)
+    expect(res.status).toBe(200)
+
+    const body = (await res.json()) as {
+      commands: Array<{ name: string; description: string }>
+    }
+
+    expect(body.commands).toContainEqual(
+      expect.objectContaining({ name: 'user-skill', description: 'User skill description' }),
+    )
+    expect(body.commands).toContainEqual(
+      expect.objectContaining({ name: 'project-skill', description: 'Project skill description' }),
+    )
   })
 
   // --------------------------------------------------------------------------

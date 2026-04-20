@@ -39,14 +39,18 @@ import { useUIStore } from '../../stores/uiStore'
 
 describe('Sidebar', () => {
   const connectToSession = vi.fn()
+  const disconnectSession = vi.fn()
   const fetchSessions = vi.fn()
   const createSession = vi.fn()
+  const deleteSession = vi.fn()
   const addToast = vi.fn()
 
   beforeEach(() => {
     connectToSession.mockReset()
+    disconnectSession.mockReset()
     fetchSessions.mockReset()
     createSession.mockReset()
+    deleteSession.mockReset()
     addToast.mockReset()
 
     useTabStore.setState({ tabs: [], activeTabId: null })
@@ -59,9 +63,11 @@ describe('Sidebar', () => {
       availableProjects: [],
       fetchSessions,
       createSession,
+      deleteSession,
     })
     useChatStore.setState({
       connectToSession,
+      disconnectSession,
     } as Partial<ReturnType<typeof useChatStore.getState>>)
     useUIStore.setState({
       addToast,
@@ -110,5 +116,43 @@ describe('Sidebar', () => {
     })
 
     expect(useTabStore.getState().tabs).toEqual([])
+  })
+
+  it('removes the matching tab when deleting a session from the sidebar', async () => {
+    deleteSession.mockResolvedValue(undefined)
+    useSessionStore.setState({
+      sessions: [
+        {
+          id: 'session-1',
+          title: 'Open Session',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+          messageCount: 1,
+          projectPath: '/workspace/project',
+          workDir: '/workspace/project',
+          workDirExists: true,
+        },
+      ],
+    })
+    useTabStore.setState({
+      tabs: [{ sessionId: 'session-1', title: 'Open Session', type: 'session', status: 'idle' }],
+      activeTabId: 'session-1',
+    })
+
+    render(<Sidebar />)
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Open Session/ }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    })
+
+    await waitFor(() => {
+      expect(deleteSession).toHaveBeenCalledWith('session-1')
+      expect(disconnectSession).toHaveBeenCalledWith('session-1')
+    })
+
+    expect(useTabStore.getState().tabs).toEqual([])
+    expect(useTabStore.getState().activeTabId).toBeNull()
   })
 })

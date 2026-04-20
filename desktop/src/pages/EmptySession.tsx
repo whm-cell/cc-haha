@@ -390,12 +390,12 @@ export function EmptySession() {
                       ref={(el) => { slashItemRefs.current[index] = el }}
                       onClick={() => selectSlashCommand(command.name)}
                       onMouseEnter={() => setSlashSelectedIndex(index)}
-                      className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors ${
+                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                         index === slashSelectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'
                       }`}
                     >
-                      <span className="text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
-                      <span className="truncate text-xs text-[var(--color-text-tertiary)]">{command.description}</span>
+                      <span className="shrink-0 text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text-tertiary)]">{command.description}</span>
                     </button>
                   ))}
                 </div>
